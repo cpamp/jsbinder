@@ -8,9 +8,10 @@ export class IParsedBinder {
 }
 
 const inputTypes = {
-    text: 'text',
+    text: "text",
     checkbox: 'checkbox',
-    radio: 'radio'
+    radio: 'radio',
+    password: 'password'
 }
 
 export class Binder extends $events {
@@ -54,7 +55,7 @@ export class Binder extends $events {
                                     var inputElement = (<HTMLInputElement>ele);
                                     if (inputElement.attributes['type']) {
                                         var type = inputElement.attributes['type'].value.toLowerCase();
-                                        if (type === inputTypes.text) {
+                                        if (type === inputTypes.text || type === inputTypes.password) {
                                             inputElement.value = value;
                                         } else if (type === inputTypes.checkbox || type === inputTypes.radio) {
                                             if (inputElement.value === value) {
@@ -88,7 +89,7 @@ export class Binder extends $events {
             if (inputElement.attributes['type']) {
 
                 var type = inputElement.attributes['type'].value.toLowerCase();
-                if (type === inputTypes.text) {
+                if (type === inputTypes.text || type === inputTypes.password) {
                     inputElement.addEventListener('input', () => {
                         scope[binder] = inputElement.value;
                     });
