@@ -46,7 +46,18 @@ export class Binder extends $events {
                             $$this.binders[binder].forEach((ele) => {
                                 if (ele.tagName.toLowerCase() === 'input') {
                                     var inputElement = (<HTMLInputElement>ele);
-                                    if (inputElement.attributes['type'] && inputElement.attributes['type'].value === 'text') {
+                                    if (inputElement.attributes['type']) {
+                                        var type = inputElement.attributes['type'].value.toLowerCase();
+                                        if (type === 'text') {
+                                            inputElement.value = value;
+                                        } else if (type === 'checkbox') {
+                                            if (inputElement.value === value) {
+                                                inputElement.checked = true;
+                                            } else {
+                                                inputElement.checked = false;
+                                            }
+                                        }
+                                    } else {
                                         inputElement.value = value;
                                     }
                                 } else {
@@ -57,17 +68,36 @@ export class Binder extends $events {
                     });
                 }
 
-                if (item.tagName.toLowerCase() === 'input' && item.attributes['type'] && item.attributes['type'].value === 'text') {
-                    item.addEventListener('input', () => {
-                        scope[binder] = (<HTMLInputElement>item).value;
-                    });
-                }
-
+                this.bindListeners(item, scope, binder);
                 this.binders[binder].push(item);
             })(this.elements.item(i));
         }
 
         this.$emit('ready');
+    }
+
+    private bindListeners(ele: Element, scope: object, binder: string) {
+        if (ele.tagName.toLowerCase() === 'input') {
+            var inputElement = (<HTMLInputElement>ele);
+            if (inputElement.attributes['type']) {
+
+                var type = inputElement.attributes['type'].value.toLowerCase();
+                if (type === 'text') {
+                    inputElement.addEventListener('input', () => {
+                        scope[binder] = inputElement.value;
+                    });
+                } else if (type === 'checkbox') {
+                    inputElement.addEventListener('change', () => {
+                        if (inputElement.checked === true) {
+                            scope[binder] = inputElement.value;
+                        } else {
+                            scope[binder] = '';
+                        }
+                    });
+                }
+
+            }
+        }
     }
 
     parseBinder(scope: Object, binder: string): IParsedBinder {
