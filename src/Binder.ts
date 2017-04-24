@@ -7,6 +7,12 @@ export class IParsedBinder {
     binder: string;
 }
 
+const inputTypes = {
+    text: 'text',
+    checkbox: 'checkbox',
+    radio: 'radio'
+}
+
 export class Binder extends $events {
     private elements: NodeListOf<Element>;
     private binderAttribute: string;
@@ -48,9 +54,9 @@ export class Binder extends $events {
                                     var inputElement = (<HTMLInputElement>ele);
                                     if (inputElement.attributes['type']) {
                                         var type = inputElement.attributes['type'].value.toLowerCase();
-                                        if (type === 'text') {
+                                        if (type === inputTypes.text) {
                                             inputElement.value = value;
-                                        } else if (type === 'checkbox') {
+                                        } else if (type === inputTypes.checkbox || type === inputTypes.radio) {
                                             if (inputElement.value === value) {
                                                 inputElement.checked = true;
                                             } else {
@@ -82,11 +88,11 @@ export class Binder extends $events {
             if (inputElement.attributes['type']) {
 
                 var type = inputElement.attributes['type'].value.toLowerCase();
-                if (type === 'text') {
+                if (type === inputTypes.text) {
                     inputElement.addEventListener('input', () => {
                         scope[binder] = inputElement.value;
                     });
-                } else if (type === 'checkbox') {
+                } else if (type === inputTypes.checkbox || type === inputTypes.radio) {
                     inputElement.addEventListener('change', () => {
                         if (inputElement.checked === true) {
                             scope[binder] = inputElement.value;
