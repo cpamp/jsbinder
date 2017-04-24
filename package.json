@@ -1,0 +1,23 @@
+{
+  "name": "jsbinder",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cpamp/jsbinder.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/cpamp/jsbinder/issues"
+  },
+  "homepage": "https://github.com/cpamp/jsbinder#readme",
+  "devDependencies": {
+    "@types/node": "^7.0.13"
+  }
+}
