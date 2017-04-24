@@ -1,7 +1,7 @@
 
 
 export interface IBinderOptions {
-    scope?: string | Object;
+    scope?: Object;
     binderPrefix?: string;
 }
 
