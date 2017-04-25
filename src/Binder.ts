@@ -11,7 +11,28 @@ const inputTypes = {
     text: "text",
     checkbox: 'checkbox',
     radio: 'radio',
-    password: 'password'
+    password: 'password',
+    email: 'email',
+    number: 'number'
+}
+
+const isInputType = {
+    input: function(tagname: string): boolean {
+        tagname = tagname.toLowerCase();
+        return tagname === 'input';
+    },
+    textbox: function(type: string): boolean {
+        type = type.toLowerCase();
+        return type === inputTypes.text ||
+            type === inputTypes.password ||
+            type === inputTypes.email ||
+            type === inputTypes.number;
+    },
+    options: function(type: string): boolean {
+        type = type.toLowerCase();
+        return type === inputTypes.radio ||
+            type === inputTypes.checkbox;
+    }
 }
 
 export class Binder extends $events {
@@ -37,7 +58,7 @@ export class Binder extends $events {
                 this.binders[binder] = this.binders[binder] || [];
 
                 if (this.binders[binder].length === 0) {
-                    var binderProperty = '$$_' + binder;
+                    var binderProperty = '_$$__' + binder + '__$$_';
                     Object.defineProperty(scope, binderProperty, {
                         value: scope[binder],
                         enumerable: false,
@@ -50,31 +71,12 @@ export class Binder extends $events {
                         },
                         set: function(value) {
                             this[binderProperty] = value;
-                            $$this.binders[binder].forEach((ele) => {
-                                if (ele.tagName.toLowerCase() === 'input') {
-                                    var inputElement = (<HTMLInputElement>ele);
-                                    if (inputElement.attributes['type']) {
-                                        var type = inputElement.attributes['type'].value.toLowerCase();
-                                        if (type === inputTypes.text || type === inputTypes.password) {
-                                            inputElement.value = value;
-                                        } else if (type === inputTypes.checkbox || type === inputTypes.radio) {
-                                            if (inputElement.value === value) {
-                                                inputElement.checked = true;
-                                            } else {
-                                                inputElement.checked = false;
-                                            }
-                                        }
-                                    } else {
-                                        inputElement.value = value;
-                                    }
-                                } else {
-                                    ele.innerHTML = value;
-                                }
-                            });
+                            $$this.propertySetter(binder, value);
                         }
                     });
                 }
 
+                this.assignDefault(item, scope[binder]);
                 this.bindListeners(item, scope, binder);
                 this.binders[binder].push(item);
             })(this.elements.item(i));
@@ -83,26 +85,61 @@ export class Binder extends $events {
         this.$emit('ready');
     }
 
-    private bindListeners(ele: Element, scope: object, binder: string) {
-        if (ele.tagName.toLowerCase() === 'input') {
-            var inputElement = (<HTMLInputElement>ele);
-            if (inputElement.attributes['type']) {
-
-                var type = inputElement.attributes['type'].value.toLowerCase();
-                if (type === inputTypes.text || type === inputTypes.password) {
-                    inputElement.addEventListener('input', () => {
-                        scope[binder] = inputElement.value;
-                    });
-                } else if (type === inputTypes.checkbox || type === inputTypes.radio) {
-                    inputElement.addEventListener('change', () => {
-                        if (inputElement.checked === true) {
-                            scope[binder] = inputElement.value;
-                        } else {
-                            scope[binder] = '';
-                        }
-                    });
+    private propertySetter(binder: string, value: any) {
+        this.binders[binder].forEach((ele: Element) => {
+            if (isInputType.input(ele.tagName)) {
+                var inputElement = (<HTMLInputElement>ele);
+                var type = inputElement.type;
+                if (isInputType.textbox(type)) {
+                    inputElement.value = value;
+                } else if (isInputType.options(type)) {
+                    if (inputElement.value === value) {
+                        inputElement.checked = true;
+                    } else {
+                        inputElement.checked = false;
+                    }
                 }
+            } else {
+                ele.innerHTML = value;
+            }
+        });
+    }
 
+    private assignDefault(element: Element, value: any) {
+        if (isInputType.input(element.tagName)) {
+            var inputElement = (<HTMLInputElement>element);
+            var type = inputElement.type;
+            if (isInputType.textbox(type)) {
+                inputElement.value = value;
+            } else if (isInputType.options(type)) {
+                if (inputElement.value === value) {
+                    inputElement.checked = true;
+                } else {
+                    inputElement.checked = false;
+                }
+            }
+        } else {
+            element.innerHTML = value;
+        }
+    }
+
+    private bindListeners(ele: Element, scope: object, binder: string) {
+        if (isInputType.input(ele.tagName)) {
+            var inputElement = (<HTMLInputElement>ele);
+            var type = inputElement.type;
+            if (isInputType.textbox(type)) {
+                inputElement.addEventListener('input', () => {
+                    scope[binder] = type === inputTypes.number && inputElement.value !== '' ?
+                        parseFloat(inputElement.value) : inputElement.value;
+                });
+            } else if (isInputType.options(type)) {
+                inputElement.addEventListener('change', () => {
+                    if (inputElement.checked === true) {
+                        scope[binder] = inputElement.value;
+                    } else {
+                        scope[binder] = '';
+                    }
+                });
             }
         }
     }
