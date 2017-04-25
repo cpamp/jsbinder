@@ -52,12 +52,13 @@ export class Binder extends $events {
         this.elements = document.querySelectorAll('[' + this.binderAttribute + ']:not([' + this.binderAttribute + '=""])')
         for (var i = 0; i < this.elements.length; i++) {
             ((item) => {
-                var parsedBinder: IParsedBinder = this.parseBinder(options.scope, item.getAttribute(this.binderAttribute));
+                var binderAttrValue = item.getAttribute(this.binderAttribute);
+                var parsedBinder: IParsedBinder = this.parseBinder(options.scope, binderAttrValue);
                 var scope = parsedBinder.scope;
                 var binder = parsedBinder.binder;
-                this.binders[binder] = this.binders[binder] || [];
+                this.binders[binderAttrValue] = this.binders[binderAttrValue] || [];
 
-                if (this.binders[binder].length === 0) {
+                if (this.binders[binderAttrValue].length === 0) {
                     var binderProperty = '_$$__' + binder + '__$$_';
                     Object.defineProperty(scope, binderProperty, {
                         value: scope[binder],
@@ -71,14 +72,14 @@ export class Binder extends $events {
                         },
                         set: function(value) {
                             this[binderProperty] = value;
-                            $$this.propertySetter(binder, value);
+                            $$this.propertySetter(binderAttrValue, value);
                         }
                     });
                 }
 
                 this.assignDefault(item, scope[binder]);
                 this.bindListeners(item, scope, binder);
-                this.binders[binder].push(item);
+                this.binders[binderAttrValue].push(item);
             })(this.elements.item(i));
         }
 
@@ -144,7 +145,7 @@ export class Binder extends $events {
         }
     }
 
-    parseBinder(scope: Object, binder: string): IParsedBinder {
+    private parseBinder(scope: Object, binder: string): IParsedBinder {
         var result: IParsedBinder = {
             scope: scope,
             binder: binder
