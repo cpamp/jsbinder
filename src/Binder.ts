@@ -1,4 +1,3 @@
-import { $events } from "events-js";
 import { onReady } from "./onReady";
 import { BinderOptions, IBinderOptions } from "./BinderOptions";
 
@@ -35,13 +34,12 @@ const isInputType = {
     }
 }
 
-export class Binder extends $events {
+export class Binder {
     private elements: NodeListOf<Element>;
     private binderAttribute: string;
     private binders: Element[] = [];
 
     constructor(options = new BinderOptions()) {
-        super();
         onReady(() => {
             this.bind(options);
         });
@@ -82,8 +80,6 @@ export class Binder extends $events {
                 this.binders[binderAttrValue].push(item);
             })(this.elements.item(i));
         }
-
-        this.$emit('ready');
     }
 
     private propertySetter(binder: string, value: any) {
