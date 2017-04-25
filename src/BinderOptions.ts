@@ -1,5 +1,3 @@
-
-
 export interface IBinderOptions {
     scope?: Object;
     binderPrefix?: string;

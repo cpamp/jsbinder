@@ -1,9 +1,5 @@
-import { Promise } from "es6-promise";
-
-export function onReady(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-        document.addEventListener("DOMContentLoaded", () => {
-            resolve();
-        });
+export function onReady(callback: Function) {
+    document.addEventListener("DOMContentLoaded", () => {
+        callback();
     });
 }

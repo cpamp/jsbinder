@@ -42,7 +42,7 @@ export class Binder extends $events {
 
     constructor(options = new BinderOptions()) {
         super();
-        onReady().then(() => {
+        onReady(() => {
             this.bind(options);
         });
     }
