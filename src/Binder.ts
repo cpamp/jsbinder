@@ -4,6 +4,7 @@ import { BinderOptions, IBinderOptions } from "./BinderOptions";
 export class IParsedBinder {
     scope: Object;
     binder: string;
+    firstBinder: string;
 }
 
 const inputTypes = {
@@ -35,9 +36,9 @@ const isInputType = {
 }
 
 export class Binder {
-    private elements: NodeListOf<Element>;
-    private binderAttribute: string;
     private binders: Element[] = [];
+    private binderSuffix: string = '-bind';
+    private forSuffix: string = '-for';
 
     constructor(options = new BinderOptions()) {
         onReady(() => {
@@ -46,40 +47,78 @@ export class Binder {
     }
 
     bind(options: IBinderOptions) {
-        this.binderAttribute = options.binderPrefix + '-bind';
-        this.elements = document.querySelectorAll('[' + this.binderAttribute + ']:not([' + this.binderAttribute + '=""])')
-        for (var i = 0; i < this.elements.length; i++) {
-            ((item) => {
-                var binderAttrValue = item.getAttribute(this.binderAttribute);
-                var parsedBinder: IParsedBinder = this.parseBinder(options.scope, binderAttrValue);
-                var scope = parsedBinder.scope;
-                var binder = parsedBinder.binder;
-                this.binders[binderAttrValue] = this.binders[binderAttrValue] || [];
+        var binderAttribute = options.binderPrefix + this.binderSuffix;
+        var elements = document.querySelectorAll(this.getAttributeSelector(binderAttribute));
+        this.bindElements(elements, options.scope, binderAttribute);
+    }
 
-                if (this.binders[binderAttrValue].length === 0) {
-                    var binderProperty = '_$$__' + binder + '__$$_';
-                    Object.defineProperty(scope, binderProperty, {
-                        value: scope[binder],
-                        enumerable: false,
-                        writable: true
-                    });
-                    var $$this = this;
-                    Object.defineProperty(scope, binder, {
-                        get: function() {
-                            return this[binderProperty]
-                        },
-                        set: function(value) {
-                            this[binderProperty] = value;
-                            $$this.propertySetter(binderAttrValue, value);
-                        }
-                    });
+    bindFor(options: IBinderOptions) {
+        var binderAttribute = options.binderPrefix + this.binderSuffix;
+        var forAttirbute = options.binderPrefix + this.forSuffix;
+        var forElements = document.querySelectorAll(this.getAttributeSelector(forAttirbute));
+        for (var i = 0; i < 0; i++) {
+            var forAttirbuteValues = forElements[i].getAttribute(forAttirbute).trim();
+            if (forAttirbuteValues.length !== 2) continue;
+
+            var forKey = forAttirbuteValues[0],
+                forScope = forAttirbuteValues[1];
+
+            var parsedFor = this.parseBinder(options.scope, forScope);
+            var scope = parsedFor.scope[parsedFor.binder];
+
+            var binders = forElements[i].querySelectorAll(this.getAttributeSelector(binderAttribute));
+        }
+    }
+
+    private bindElements(elements: NodeListOf<Element>, scope: Object, binderAttribute: string, rootScope: Object = null, forKey: string = null) {
+        var forIndex = 0;
+        for (var i = 0; i < elements.length; i++) {
+            ((item) => {
+                var binderAttrValue = item.getAttribute(binderAttribute).trim();
+                var parsedBinder: IParsedBinder = this.parseBinder(scope, binderAttrValue);
+                if (!parsedBinder) {
+                    if (rootScope != null) {
+                        parsedBinder = this.parseBinder(rootScope, binderAttrValue);
+                    }
+                } else {
+                    if (parsedBinder.firstBinder === forKey) forIndex++;
                 }
 
-                this.assignDefault(item, scope[binder]);
-                this.bindListeners(item, scope, binder);
-                this.binders[binderAttrValue].push(item);
-            })(this.elements.item(i));
+                if (parsedBinder) {
+
+                    var scope = parsedBinder.scope;
+                    var binder = parsedBinder.binder;
+                    this.binders[binderAttrValue] = this.binders[binderAttrValue] || [];
+
+                    if (this.binders[binderAttrValue].length === 0) {
+                        var binderProperty = '_$$__' + binder + '__$$_';
+                        Object.defineProperty(scope, binderProperty, {
+                            value: scope[binder],
+                            enumerable: false,
+                            writable: true
+                        });
+                        var $$this = this;
+                        Object.defineProperty(scope, binder, {
+                            get: function() {
+                                return this[binderProperty]
+                            },
+                            set: function(value) {
+                                this[binderProperty] = value;
+                                $$this.propertySetter(binderAttrValue, value);
+                            }
+                        });
+                    }
+
+                    this.assignDefault(item, scope[binder]);
+                    this.bindListeners(item, scope, binder);
+                    this.binders[binderAttrValue].push(item);
+                }
+            })(elements.item(i));
         }
+    }
+
+    private getAttributeSelector(attribute: string) {
+        return '[' + attribute + ']:not([' + attribute + '=""])';
     }
 
     private propertySetter(binder: string, value: any) {
@@ -144,7 +183,8 @@ export class Binder {
     private parseBinder(scope: Object, binder: string): IParsedBinder {
         var result: IParsedBinder = {
             scope: scope,
-            binder: binder
+            binder: binder,
+            firstBinder: binder
         }
         var binders = binder.split('.');
         if (binders.length > 1) {
@@ -155,6 +195,7 @@ export class Binder {
             }
             result.scope = currentScope;
             result.binder = binders[binders.length - 1];
+            result.firstBinder = binders[0];
         }
         return result;
     }
