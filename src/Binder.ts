@@ -1,6 +1,6 @@
 import { onReady } from "./onReady";
 import { BinderOptions, IBinderOptions } from "./BinderOptions";
-import { ForBinder } from "./ForBinder";
+import { ForBinder, IForElement } from "./ForBinder";
 
 export interface IParsedBinder {
     scope: Object;
@@ -61,32 +61,72 @@ export class Binder {
         var forAttirbute = options.binderPrefix + this.forSuffix;
         var forElements = document.querySelectorAll(this.getAttributeSelector(forAttirbute));
         for (var i = 0; i < forElements.length; i++) {
-            var forAttirbuteValues = forElements[i].getAttribute(forAttirbute).trim().split(" in ");
-            if (forAttirbuteValues.length !== 2) continue;
-
-            var forKey = forAttirbuteValues[0];
-            
-            var parsedForBinder = this.parseBinder(options.scope, forAttirbuteValues[1]);
-            if (!parsedForBinder || !parsedForBinder.scope[parsedForBinder.binder] || parsedForBinder.scope[parsedForBinder.binder].length === 0) continue;
-            var forScope: any[] = parsedForBinder.scope[parsedForBinder.binder];
-            
-            var forBinder = new ForBinder(forElements[i]);
-
-            for (var j = 0; j < forScope.length; j++) {
-                var forElement: Element = j === 0 ? forElements[i] : <Element>forElements[i].cloneNode(true);
-                if (j !== 0) { 
-                    forElement = forBinder.forElements[forBinder.forElements.length - 1].insertAdjacentElement('afterend', forElement);
-                    forBinder.forElements.push(forElement);
-                }
-                var binders = forElement.querySelectorAll(this.getAttributeSelector(binderAttribute));
-                this.bindElements(binders, forScope, binderAttribute, forKey, parsedForBinder.fullBinder, j);
-                forBinder.forElements.push(forElement);
-                for (var k = 0; k < binders.length; k++) {
-                    forBinder.forBinders.push(binders[k]);
-                }
-            }
-            this.forBinders.push(forBinder);
+            this.bindForElement(forElements[i], options.scope, binderAttribute, forAttirbute);
         }
+    }
+
+    private bindForElement(element: Element, scope: Object, binderAttribute: string, forAttribute: string) {
+        var forAttirbuteValues = element.getAttribute(forAttribute).trim().split(" in ");
+        if (forAttirbuteValues.length !== 2) return;
+
+        var forKey = forAttirbuteValues[0];
+        
+        var parsedForBinder = this.parseBinder(scope, forAttirbuteValues[1]);
+        if (!parsedForBinder || !parsedForBinder.scope[parsedForBinder.binder] || parsedForBinder.scope[parsedForBinder.binder].length === 0) return;
+        var forScope: any[] = parsedForBinder.scope[parsedForBinder.binder];
+
+        var forBinder = new ForBinder(element);
+
+        ((forBinder: ForBinder) => {
+            var rebinder = this.rebindFor(element, scope, binderAttribute, forAttribute, forBinder, parsedForBinder);
+            this.bindSetter(parsedForBinder.scope, parsedForBinder.binder, parsedForBinder.fullBinder, rebinder);
+            Object.defineProperty(parsedForBinder.scope[parsedForBinder.binder], "push", {
+                configurable: true,
+                enumerable: false,
+                writable: false,
+                value: function () {
+                    for (var i = 0, n = this.length, l = arguments.length; i < l; i++, n++) {          
+                        this[n] = arguments[i];
+                    }
+                    rebinder();
+                    return n;
+                }
+            });
+        })(forBinder);
+
+        for (var j = 0; j < forScope.length; j++) {
+            var forElement: Element = j === 0 ? element : <Element>element.cloneNode(true);
+            if (j !== 0) { 
+                forElement = forBinder.forElements[forBinder.forElements.length - 1].forElement.insertAdjacentElement('afterend', forElement);
+            }
+            var forElementBinds: IForElement = {
+                forElement: forElement,
+                binderElements: []
+            }
+            var binders = forElement.querySelectorAll(this.getAttributeSelector(binderAttribute));
+            this.bindElements(binders, forScope, binderAttribute, forKey, parsedForBinder.fullBinder, j);
+            for (var k = 0; k < binders.length; k++) {
+                forElementBinds.binderElements.push(binders[k]);
+            }
+            forBinder.forElements.push(forElementBinds);
+        }
+        this.forBinders.push(forBinder);
+    }
+
+    private rebindFor(element: Element, scope: Object, binderAttribute: string, forAttribute: string, forBinder: ForBinder, parsedForBiner: IParsedBinder): Function {
+        return () => {
+            forBinder.forBinders.forEach((binder: Element) => {
+                binder.remove();
+            });
+            forBinder.forElements.forEach((ele: IForElement) => {
+                if (!forBinder.isRoot(ele.forElement)) {
+                    ele.binderElements.forEach((binderEle: Element) => {
+                        binderEle.remove();
+                    });
+                }
+            });
+            this.bindForElement(<Element>forBinder.rootFor, scope, binderAttribute, forAttribute);
+        };
     }
 
     private bindElements(elements: NodeListOf<Element>, rootScope: Object, binderAttribute: string, forKey?: string, forBinderValue?: string, forIndex?: number) {
@@ -121,7 +161,7 @@ export class Binder {
         }
     }
 
-    private bindSetter(scope: Object, binder: string, binderAttrValue: string) {
+    private bindSetter(scope: Object, binder: string, binderAttrValue: string, customSetter: Function = null) {
         var binderProperty = '_$$__' + binder + '__$$_';
         Object.defineProperty(scope, binderProperty, {
             value: scope[binder],
@@ -136,6 +176,7 @@ export class Binder {
             set: function(value) {
                 this[binderProperty] = value;
                 $$this.propertySetter(binderAttrValue, value);
+                if (typeof customSetter === 'function') customSetter();
             }
         });
     }
