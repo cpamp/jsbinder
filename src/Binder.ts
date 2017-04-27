@@ -37,6 +37,18 @@ const isInputType = {
     }
 }
 
+const arrayMutators = [
+    "copyWithin",
+    "fill",
+    "pop",
+    "push",
+    "reverse",
+    "shift",
+    "sort",
+    "splice",
+    "unshift"
+]
+
 export class Binder {
     private binders: Element[] = [];
     private forBinders: ForBinder[] = [];
@@ -66,7 +78,7 @@ export class Binder {
     }
 
     private bindForElement(element: Element, scope: Object, binderAttribute: string, forAttribute: string) {
-        var forAttirbuteValues = element.getAttribute(forAttribute).trim().split(" in ");
+        var forAttirbuteValues = element.getAttribute(forAttribute).trim().split(" of ");
         if (forAttirbuteValues.length !== 2) return;
 
         var forKey = forAttirbuteValues[0];
@@ -80,18 +92,7 @@ export class Binder {
         ((forBinder: ForBinder) => {
             var rebinder = this.rebindFor(element, scope, binderAttribute, forAttribute, forBinder, parsedForBinder);
             this.bindSetter(parsedForBinder.scope, parsedForBinder.binder, parsedForBinder.fullBinder, rebinder);
-            Object.defineProperty(parsedForBinder.scope[parsedForBinder.binder], "push", {
-                configurable: true,
-                enumerable: false,
-                writable: false,
-                value: function () {
-                    for (var i = 0, n = this.length, l = arguments.length; i < l; i++, n++) {          
-                        this[n] = arguments[i];
-                    }
-                    rebinder();
-                    return n;
-                }
-            });
+            this.defineArrayMutators(parsedForBinder.scope[parsedForBinder.binder], rebinder);
         })(forBinder);
 
         for (var j = 0; j < forScope.length; j++) {
@@ -113,16 +114,32 @@ export class Binder {
         this.forBinders.push(forBinder);
     }
 
+    private defineArrayMutators(arrayObject: any[], rebinder: Function) {
+        for (var method of arrayMutators) {
+            this.defineArrayMutator(arrayObject, rebinder, method);
+        }
+    }
+    private defineArrayMutator(arrayObject: any[], rebinder: Function, method: string) {
+        Object.defineProperty(arrayObject, method, {
+            configurable: true,
+            enumerable: false,
+            writable: false,
+            value: function () {
+                var result = Array.prototype[method].apply(this, arguments);
+                rebinder();
+                return result;
+            }
+        });
+    }
+
     private rebindFor(element: Element, scope: Object, binderAttribute: string, forAttribute: string, forBinder: ForBinder, parsedForBiner: IParsedBinder): Function {
         return () => {
-            forBinder.forBinders.forEach((binder: Element) => {
-                binder.remove();
-            });
             forBinder.forElements.forEach((ele: IForElement) => {
                 if (!forBinder.isRoot(ele.forElement)) {
                     ele.binderElements.forEach((binderEle: Element) => {
                         binderEle.remove();
                     });
+                    ele.forElement.remove();
                 }
             });
             this.bindForElement(<Element>forBinder.rootFor, scope, binderAttribute, forAttribute);

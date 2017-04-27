@@ -9,15 +9,17 @@ export interface IForElement {
 }
 
 export class ForBinder {
-    constructor(public rootFor: Element, public forElements: IForElement[] = [], public forBinders: Element[] = []) {}
+    constructor(public rootFor: Element, public forElements: IForElement[] = []) {}
 
     isRoot(search: Element): boolean {
         return this.rootFor === search;
     }
 
     hasForBinder(search: Element): boolean {
-        for (var element of this.forBinders) {
-            if (element === search) return true;
+        for (var forElement of this.forElements) {
+            for (var element of forElement.binderElements) {
+                if (element === search) return true;
+            }
         }
         return false;
     }
