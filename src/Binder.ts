@@ -37,18 +37,6 @@ const isInputType = {
     }
 }
 
-const arrayMutators = [
-    "copyWithin",
-    "fill",
-    "pop",
-    "push",
-    "reverse",
-    "shift",
-    "sort",
-    "splice",
-    "unshift"
-]
-
 export class Binder {
     private binders: Element[] = [];
     private forBinders: ForBinder[] = [];
@@ -78,6 +66,7 @@ export class Binder {
     }
 
     private bindForElement(element: Element, scope: Object, binderAttribute: string, forAttribute: string) {
+        (<HTMLElement>element).style.visibility = 'visible';
         var forAttirbuteValues = element.getAttribute(forAttribute).trim().split(" of ");
         if (forAttirbuteValues.length !== 2) return;
 
@@ -91,30 +80,45 @@ export class Binder {
 
         ((forBinder: ForBinder) => {
             var rebinder = this.rebindFor(element, scope, binderAttribute, forAttribute, forBinder, parsedForBinder);
-            this.bindSetter(parsedForBinder.scope, parsedForBinder.binder, parsedForBinder.fullBinder, rebinder);
+            this.bindSetter(parsedForBinder, rebinder);
             this.defineArrayMutators(parsedForBinder.scope[parsedForBinder.binder], rebinder);
         })(forBinder);
 
-        for (var j = 0; j < forScope.length; j++) {
-            var forElement: Element = j === 0 ? element : <Element>element.cloneNode(true);
-            if (j !== 0) { 
-                forElement = forBinder.forElements[forBinder.forElements.length - 1].forElement.insertAdjacentElement('afterend', forElement);
+        if (parsedForBinder.scope[parsedForBinder.binder].$$undefinedBinder) {
+            (<HTMLElement>element).style.visibility = 'hidden';
+        } else {
+            for (var j = 0; j < forScope.length; j++) {
+                var forElement: Element = j === 0 ? element : <Element>element.cloneNode(true);
+                if (j !== 0) { 
+                    forElement = forBinder.forElements[forBinder.forElements.length - 1].forElement.insertAdjacentElement('afterend', forElement);
+                }
+                var forElementBinds: IForElement = {
+                    forElement: forElement,
+                    binderElements: []
+                }
+                var binders = forElement.querySelectorAll(this.getAttributeSelector(binderAttribute));
+                this.bindElements(binders, forScope, binderAttribute, forKey, parsedForBinder.fullBinder, j);
+                for (var k = 0; k < binders.length; k++) {
+                    forElementBinds.binderElements.push(binders[k]);
+                }
+                forBinder.forElements.push(forElementBinds);
             }
-            var forElementBinds: IForElement = {
-                forElement: forElement,
-                binderElements: []
-            }
-            var binders = forElement.querySelectorAll(this.getAttributeSelector(binderAttribute));
-            this.bindElements(binders, forScope, binderAttribute, forKey, parsedForBinder.fullBinder, j);
-            for (var k = 0; k < binders.length; k++) {
-                forElementBinds.binderElements.push(binders[k]);
-            }
-            forBinder.forElements.push(forElementBinds);
         }
         this.forBinders.push(forBinder);
     }
 
     private defineArrayMutators(arrayObject: any[], rebinder: Function) {
+        const arrayMutators = [
+            "copyWithin",
+            "fill",
+            "pop",
+            "push",
+            "reverse",
+            "shift",
+            "sort",
+            "splice",
+            "unshift"
+        ];
         for (var method of arrayMutators) {
             this.defineArrayMutator(arrayObject, rebinder, method);
         }
@@ -142,6 +146,11 @@ export class Binder {
                     ele.forElement.remove();
                 }
             });
+            for (var i = 0; i < this.forBinders.length; i++) {
+                if (forBinder === this.forBinders[i]) {
+                    this.forBinders.splice(i, 1);
+                }
+            }
             this.bindForElement(<Element>forBinder.rootFor, scope, binderAttribute, forAttribute);
         };
     }
@@ -149,26 +158,21 @@ export class Binder {
     private bindElements(elements: NodeListOf<Element>, rootScope: Object, binderAttribute: string, forKey?: string, forBinderValue?: string, forIndex?: number) {
         for (var i = 0; i < elements.length; i++) {
             ((item) => {
-                var binderAttrValue = item.getAttribute(binderAttribute).trim();
-                var parsedBinder: IParsedBinder = this.parseBinder(rootScope, binderAttrValue, forKey, forBinderValue, forIndex);
+                var isForBinder = false;
+                for (var i = 0; i < this.forBinders.length; i++) {
+                    if (this.forBinders[i].hasForBinder(item)) {
+                        isForBinder = true;
+                        break;
+                    };
+                }
+                if (!isForBinder) {
+                    var binderAttrValue = item.getAttribute(binderAttribute).trim();
+                    var parsedBinder: IParsedBinder = this.parseBinder(rootScope, binderAttrValue, forKey, forBinderValue, forIndex);
 
-                if (parsedBinder) {
-                    var isForBinder = false;
-                    for (var i = 0; i < this.forBinders.length; i++) {
-                        if (this.forBinders[i].hasForBinder(item)) {
-                            isForBinder = true;
-                            break;
-                        };
-                    }
-                    if (!isForBinder) {
+                    if (parsedBinder) {
                         var scope = parsedBinder.scope;
                         var binder = parsedBinder.binder;
-                        this.binders[parsedBinder.fullBinder] = this.binders[parsedBinder.fullBinder] || [];
-
-                        if (this.binders[parsedBinder.fullBinder].length === 0) {
-                            this.bindSetter(scope, binder, parsedBinder.fullBinder);
-                        }
-
+                        this.bindSetter(parsedBinder);
                         this.assignDefault(item, scope[binder]);
                         this.bindListeners(item, scope, binder);
                         this.binders[parsedBinder.fullBinder].push(item);
@@ -178,24 +182,32 @@ export class Binder {
         }
     }
 
-    private bindSetter(scope: Object, binder: string, binderAttrValue: string, customSetter: Function = null) {
-        var binderProperty = '_$$__' + binder + '__$$_';
-        Object.defineProperty(scope, binderProperty, {
-            value: scope[binder],
-            enumerable: false,
-            writable: true
-        });
-        var $$this = this;
-        Object.defineProperty(scope, binder, {
-            get: function() {
-                return this[binderProperty]
-            },
-            set: function(value) {
-                this[binderProperty] = value;
-                $$this.propertySetter(binderAttrValue, value);
-                if (typeof customSetter === 'function') customSetter();
-            }
-        });
+    private bindSetter(parsedBinder: IParsedBinder, customSetter: Function = null) {
+        var binder = parsedBinder.binder,
+            scope = parsedBinder.scope,
+            binderAttrValue = parsedBinder.fullBinder,
+            binderProperty = '_$$__' + binder + '__$$_';
+
+        this.binders[binderAttrValue] = this.binders[binderAttrValue] || [];
+
+        if (this.binders[binderAttrValue].length === 0) {
+            Object.defineProperty(scope, binderProperty, {
+                value: scope[binder],
+                enumerable: false,
+                writable: true
+            });
+            var $$this = this;
+            Object.defineProperty(scope, binder, {
+                get: function() {
+                    return this[binderProperty]
+                },
+                set: function(value) {
+                    this[binderProperty] = value;
+                    $$this.propertySetter(binderAttrValue, value);
+                    if (typeof customSetter === 'function') customSetter();
+                }
+            });
+        }
     }
 
     private getAttributeSelector(attribute: string) {
@@ -293,6 +305,7 @@ export class Binder {
         }
         result.firstBinder = binders[0];
         result.fullBinder = fullBinder || result.fullBinder;
+        if (result.scope && result.scope[result.binder] === void 0) result.scope[result.binder] = { $$undefinedBinder: true };
         return result;
     }
 }
