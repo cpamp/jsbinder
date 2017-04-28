@@ -1,23 +1,23 @@
 export interface IForBinder {
-    rootFor: Element;
-    forElements: IForElement[];
+    root: Element;
+    elements: IForElement[];
 }
 
 export interface IForElement {
-    forElement: Element;
-    binderElements: Element[];
+    element: Element;
+    binders: Element[];
 }
 
-export class ForBinder {
-    constructor(public rootFor: Element, public forElements: IForElement[] = []) {}
+export class ForBinder implements IForBinder {
+    constructor(public root: Element, public elements: IForElement[] = []) {}
 
     isRoot(search: Element): boolean {
-        return this.rootFor === search;
+        return this.root === search;
     }
 
     hasForBinder(search: Element): boolean {
-        for (var forElement of this.forElements) {
-            for (var element of forElement.binderElements) {
+        for (var forElement of this.elements) {
+            for (var element of forElement.binders) {
                 if (element === search) return true;
             }
         }

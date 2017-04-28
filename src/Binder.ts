@@ -9,6 +9,37 @@ export interface IParsedBinder {
     fullBinder: string;
 }
 
+export class Binder {
+    private binders: Element[] = [];
+    private forBinders: ForBinder[] = [];
+
+    constructor(options = new BinderOptions()) {
+        onReady(() => {
+            this.bind(options);
+        });
+    }
+
+    bind(options: IBinderOptions) {
+        var binderAttribute = options.binderPrefix + binderSuffix;
+        this.bindFor(options);
+        var elements = document.querySelectorAll(getAttributeSelector(binderAttribute));
+        bindElements(elements, options.scope, binderAttribute, this.binders, this.forBinders);
+    }
+
+    bindFor(options: IBinderOptions) {
+        var binderAttribute = options.binderPrefix + binderSuffix;
+        var forAttirbute = options.binderPrefix + forSuffix;
+        var forElements = document.querySelectorAll(getAttributeSelector(forAttirbute));
+        for (var i = 0; i < forElements.length; i++) {
+            bindForElement(forElements[i], options.scope, binderAttribute, forAttirbute, this.forBinders, this.binders);
+        }
+    }
+}
+
+
+const binderSuffix: string = '-bind';
+const forSuffix: string = '-for';
+
 const inputTypes = {
     text: "text",
     checkbox: 'checkbox',
@@ -37,206 +68,158 @@ const isInputType = {
     }
 }
 
-export class Binder {
-    private binders: Element[] = [];
-    private forBinders: ForBinder[] = [];
-    private binderSuffix: string = '-bind';
-    private forSuffix: string = '-for';
+function bindForElement(element: Element, scope: Object, binderAttribute: string, forAttribute: string, forBinders: ForBinder[], binderEles: Element[]) {
+    (<HTMLElement>element).style.visibility = 'visible';
+    var forAttirbuteValues = element.getAttribute(forAttribute).trim().split(" of ");
+    if (forAttirbuteValues.length !== 2) return;
 
-    constructor(options = new BinderOptions()) {
-        onReady(() => {
-            this.bind(options);
-        });
-    }
+    var forKey = forAttirbuteValues[0];
+    
+    var parsedForBinder = parseBinder(scope, forAttirbuteValues[1]);
+    if (!parsedForBinder || !parsedForBinder.scope[parsedForBinder.binder] || parsedForBinder.scope[parsedForBinder.binder].length === 0) return;
+    var forScope: any[] = parsedForBinder.scope[parsedForBinder.binder];
 
-    bind(options: IBinderOptions) {
-        var binderAttribute = options.binderPrefix + this.binderSuffix;
-        this.bindFor(options);
-        var elements = document.querySelectorAll(this.getAttributeSelector(binderAttribute));
-        this.bindElements(elements, options.scope, binderAttribute);
-    }
+    var forBinder = new ForBinder(element);
 
-    bindFor(options: IBinderOptions) {
-        var binderAttribute = options.binderPrefix + this.binderSuffix;
-        var forAttirbute = options.binderPrefix + this.forSuffix;
-        var forElements = document.querySelectorAll(this.getAttributeSelector(forAttirbute));
-        for (var i = 0; i < forElements.length; i++) {
-            this.bindForElement(forElements[i], options.scope, binderAttribute, forAttirbute);
+    ((forBinder: ForBinder) => {
+        var rebinder = rebindFor(element, scope, binderAttribute, forAttribute, forBinder, parsedForBinder, forBinders, binderEles);
+        bindSetter(parsedForBinder, binderEles, rebinder);
+        defineArrayMutators(parsedForBinder.scope[parsedForBinder.binder], rebinder);
+    })(forBinder);
+
+    if (parsedForBinder.scope[parsedForBinder.binder].$$undefinedBinder) {
+        (<HTMLElement>element).style.visibility = 'hidden';
+    } else {
+        for (var j = 0; j < forScope.length; j++) {
+            var forElement: Element = j === 0 ? element : <Element>element.cloneNode(true);
+            if (j !== 0) { 
+                forElement = forBinder.elements[forBinder.elements.length - 1].element.insertAdjacentElement('afterend', forElement);
+            }
+            var forElementBinds: IForElement = {
+                element: forElement,
+                binders: []
+            }
+            var binders = forElement.querySelectorAll(getAttributeSelector(binderAttribute));
+            bindElements(binders, forScope, binderAttribute, binderEles, forBinders, forKey, parsedForBinder.fullBinder, j);
+            for (var k = 0; k < binders.length; k++) {
+                forElementBinds.binders.push(binders[k]);
+            }
+            forBinder.elements.push(forElementBinds);
         }
     }
+    forBinders.push(forBinder);
+}
 
-    private bindForElement(element: Element, scope: Object, binderAttribute: string, forAttribute: string) {
-        (<HTMLElement>element).style.visibility = 'visible';
-        var forAttirbuteValues = element.getAttribute(forAttribute).trim().split(" of ");
-        if (forAttirbuteValues.length !== 2) return;
+function defineArrayMutators(arrayObject: any[], rebinder: Function) {
+    const arrayMutators = [
+        "copyWithin",
+        "fill",
+        "pop",
+        "push",
+        "reverse",
+        "shift",
+        "sort",
+        "splice",
+        "unshift"
+    ];
+    for (var method of arrayMutators) {
+        defineArrayMutator(arrayObject, rebinder, method);
+    }
+}
+function defineArrayMutator(arrayObject: any[], rebinder: Function, method: string) {
+    Object.defineProperty(arrayObject, method, {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: function () {
+            var result = Array.prototype[method].apply(this, arguments);
+            rebinder();
+            return result;
+        }
+    });
+}
 
-        var forKey = forAttirbuteValues[0];
-        
-        var parsedForBinder = this.parseBinder(scope, forAttirbuteValues[1]);
-        if (!parsedForBinder || !parsedForBinder.scope[parsedForBinder.binder] || parsedForBinder.scope[parsedForBinder.binder].length === 0) return;
-        var forScope: any[] = parsedForBinder.scope[parsedForBinder.binder];
-
-        var forBinder = new ForBinder(element);
-
-        ((forBinder: ForBinder) => {
-            var rebinder = this.rebindFor(element, scope, binderAttribute, forAttribute, forBinder, parsedForBinder);
-            this.bindSetter(parsedForBinder, rebinder);
-            this.defineArrayMutators(parsedForBinder.scope[parsedForBinder.binder], rebinder);
-        })(forBinder);
-
-        if (parsedForBinder.scope[parsedForBinder.binder].$$undefinedBinder) {
-            (<HTMLElement>element).style.visibility = 'hidden';
-        } else {
-            for (var j = 0; j < forScope.length; j++) {
-                var forElement: Element = j === 0 ? element : <Element>element.cloneNode(true);
-                if (j !== 0) { 
-                    forElement = forBinder.forElements[forBinder.forElements.length - 1].forElement.insertAdjacentElement('afterend', forElement);
-                }
-                var forElementBinds: IForElement = {
-                    forElement: forElement,
-                    binderElements: []
-                }
-                var binders = forElement.querySelectorAll(this.getAttributeSelector(binderAttribute));
-                this.bindElements(binders, forScope, binderAttribute, forKey, parsedForBinder.fullBinder, j);
-                for (var k = 0; k < binders.length; k++) {
-                    forElementBinds.binderElements.push(binders[k]);
-                }
-                forBinder.forElements.push(forElementBinds);
+function rebindFor(element: Element, scope: Object, binderAttribute: string, forAttribute: string, forBinder: ForBinder, parsedForBiner: IParsedBinder, forBinders: ForBinder[], binders: Element[]): Function {
+    return () => {
+        forBinder.elements.forEach((ele: IForElement) => {
+            if (!forBinder.isRoot(ele.element)) {
+                ele.binders.forEach((binderEle: Element) => {
+                    binderEle.remove();
+                });
+                ele.element.remove();
+            }
+        });
+        for (var i = 0; i < forBinders.length; i++) {
+            if (forBinder === forBinders[i]) {
+                forBinders.splice(i, 1);
             }
         }
-        this.forBinders.push(forBinder);
-    }
+        bindForElement(<Element>forBinder.root, scope, binderAttribute, forAttribute, forBinders, binders);
+    };
+}
 
-    private defineArrayMutators(arrayObject: any[], rebinder: Function) {
-        const arrayMutators = [
-            "copyWithin",
-            "fill",
-            "pop",
-            "push",
-            "reverse",
-            "shift",
-            "sort",
-            "splice",
-            "unshift"
-        ];
-        for (var method of arrayMutators) {
-            this.defineArrayMutator(arrayObject, rebinder, method);
-        }
+function bindElements(elements: NodeListOf<Element>, rootScope: Object, binderAttribute: string, binders: Element[], forBinders: ForBinder[], forKey?: string, forBinderValue?: string, forIndex?: number) {
+    for (var i = 0; i < elements.length; i++) {
+        ((item) => {
+            var isForBinder = false;
+            for (var i = 0; i < forBinders.length; i++) {
+                if (forBinders[i].hasForBinder(item)) {
+                    isForBinder = true;
+                    break;
+                };
+            }
+            if (!isForBinder) {
+                var binderAttrValue = item.getAttribute(binderAttribute).trim();
+                var parsedBinder: IParsedBinder = parseBinder(rootScope, binderAttrValue, forKey, forBinderValue, forIndex);
+
+                if (parsedBinder) {
+                    var scope = parsedBinder.scope;
+                    var binder = parsedBinder.binder;
+                    bindSetter(parsedBinder, binders);
+                    assignDefault(item, scope[binder]);
+                    bindListeners(item, scope, binder);
+                    binders[parsedBinder.fullBinder].push(item);
+                }
+            }
+        })(elements.item(i));
     }
-    private defineArrayMutator(arrayObject: any[], rebinder: Function, method: string) {
-        Object.defineProperty(arrayObject, method, {
-            configurable: true,
+}
+
+function bindSetter(parsedBinder: IParsedBinder, binders: Element[], customSetter: Function = null) {
+    var binder = parsedBinder.binder,
+        scope = parsedBinder.scope,
+        binderAttrValue = parsedBinder.fullBinder,
+        binderProperty = '_$$__' + binder + '__$$_';
+
+    binders[binderAttrValue] = binders[binderAttrValue] || [];
+
+    if (binders[binderAttrValue].length === 0) {
+        Object.defineProperty(scope, binderProperty, {
+            value: scope[binder],
             enumerable: false,
-            writable: false,
-            value: function () {
-                var result = Array.prototype[method].apply(this, arguments);
-                rebinder();
-                return result;
+            writable: true
+        });
+        Object.defineProperty(scope, binder, {
+            get: function() {
+                return this[binderProperty]
+            },
+            set: function(value) {
+                this[binderProperty] = value;
+                propertySetter(binders, binderAttrValue, value);
+                if (typeof customSetter === 'function') customSetter();
             }
         });
     }
+}
 
-    private rebindFor(element: Element, scope: Object, binderAttribute: string, forAttribute: string, forBinder: ForBinder, parsedForBiner: IParsedBinder): Function {
-        return () => {
-            forBinder.forElements.forEach((ele: IForElement) => {
-                if (!forBinder.isRoot(ele.forElement)) {
-                    ele.binderElements.forEach((binderEle: Element) => {
-                        binderEle.remove();
-                    });
-                    ele.forElement.remove();
-                }
-            });
-            for (var i = 0; i < this.forBinders.length; i++) {
-                if (forBinder === this.forBinders[i]) {
-                    this.forBinders.splice(i, 1);
-                }
-            }
-            this.bindForElement(<Element>forBinder.rootFor, scope, binderAttribute, forAttribute);
-        };
-    }
+function getAttributeSelector(attribute: string) {
+    return '[' + attribute + ']:not([' + attribute + '=""])';
+}
 
-    private bindElements(elements: NodeListOf<Element>, rootScope: Object, binderAttribute: string, forKey?: string, forBinderValue?: string, forIndex?: number) {
-        for (var i = 0; i < elements.length; i++) {
-            ((item) => {
-                var isForBinder = false;
-                for (var i = 0; i < this.forBinders.length; i++) {
-                    if (this.forBinders[i].hasForBinder(item)) {
-                        isForBinder = true;
-                        break;
-                    };
-                }
-                if (!isForBinder) {
-                    var binderAttrValue = item.getAttribute(binderAttribute).trim();
-                    var parsedBinder: IParsedBinder = this.parseBinder(rootScope, binderAttrValue, forKey, forBinderValue, forIndex);
-
-                    if (parsedBinder) {
-                        var scope = parsedBinder.scope;
-                        var binder = parsedBinder.binder;
-                        this.bindSetter(parsedBinder);
-                        this.assignDefault(item, scope[binder]);
-                        this.bindListeners(item, scope, binder);
-                        this.binders[parsedBinder.fullBinder].push(item);
-                    }
-                }
-            })(elements.item(i));
-        }
-    }
-
-    private bindSetter(parsedBinder: IParsedBinder, customSetter: Function = null) {
-        var binder = parsedBinder.binder,
-            scope = parsedBinder.scope,
-            binderAttrValue = parsedBinder.fullBinder,
-            binderProperty = '_$$__' + binder + '__$$_';
-
-        this.binders[binderAttrValue] = this.binders[binderAttrValue] || [];
-
-        if (this.binders[binderAttrValue].length === 0) {
-            Object.defineProperty(scope, binderProperty, {
-                value: scope[binder],
-                enumerable: false,
-                writable: true
-            });
-            var $$this = this;
-            Object.defineProperty(scope, binder, {
-                get: function() {
-                    return this[binderProperty]
-                },
-                set: function(value) {
-                    this[binderProperty] = value;
-                    $$this.propertySetter(binderAttrValue, value);
-                    if (typeof customSetter === 'function') customSetter();
-                }
-            });
-        }
-    }
-
-    private getAttributeSelector(attribute: string) {
-        return '[' + attribute + ']:not([' + attribute + '=""])';
-    }
-
-    private propertySetter(binder: string, value: any) {
-        this.binders[binder].forEach((ele: Element) => {
-            if (isInputType.input(ele.tagName)) {
-                var inputElement = (<HTMLInputElement>ele);
-                var type = inputElement.type;
-                if (isInputType.textbox(type)) {
-                    inputElement.value = value;
-                } else if (isInputType.options(type)) {
-                    if (inputElement.value === value) {
-                        inputElement.checked = true;
-                    } else {
-                        inputElement.checked = false;
-                    }
-                }
-            } else {
-                ele.innerHTML = value;
-            }
-        });
-    }
-
-    private assignDefault(element: Element, value: any) {
-        if (isInputType.input(element.tagName)) {
-            var inputElement = (<HTMLInputElement>element);
+function propertySetter(binders: Element[], binder: string, value: any) {
+    binders[binder].forEach((ele: Element) => {
+        if (isInputType.input(ele.tagName)) {
+            var inputElement = (<HTMLInputElement>ele);
             var type = inputElement.type;
             if (isInputType.textbox(type)) {
                 inputElement.value = value;
@@ -248,64 +231,82 @@ export class Binder {
                 }
             }
         } else {
-            element.innerHTML = value;
+            ele.innerHTML = value;
         }
-    }
+    });
+}
 
-    private bindListeners(ele: Element, scope: object, binder: string) {
-        if (isInputType.input(ele.tagName)) {
-            var inputElement = (<HTMLInputElement>ele);
-            var type = inputElement.type;
-            if (isInputType.textbox(type)) {
-                inputElement.addEventListener('input', () => {
-                    scope[binder] = type === inputTypes.number && inputElement.value !== '' ?
-                        parseFloat(inputElement.value) : inputElement.value;
-                });
-            } else if (isInputType.options(type)) {
-                inputElement.addEventListener('change', () => {
-                    if (inputElement.checked === true) {
-                        scope[binder] = inputElement.value;
-                    } else {
-                        scope[binder] = '';
-                    }
-                });
+function assignDefault(element: Element, value: any) {
+    if (isInputType.input(element.tagName)) {
+        var inputElement = (<HTMLInputElement>element);
+        var type = inputElement.type;
+        if (isInputType.textbox(type)) {
+            inputElement.value = value;
+        } else if (isInputType.options(type)) {
+            if (inputElement.value === value) {
+                inputElement.checked = true;
+            } else {
+                inputElement.checked = false;
             }
         }
+    } else {
+        element.innerHTML = value;
     }
+}
 
-    private parseBinder(scope: Object, binder: string, forKey?: string, forBinderValue?: string, forIndex?: number): IParsedBinder {
-        var result: IParsedBinder = {
-            scope: scope,
-            binder: binder,
-            firstBinder: binder,
-            fullBinder: binder
-        }
-        var binders = binder.split('.');
-        var currentScope = scope[binders[0]];
-        var fullBinder;
-        if (forKey != null && forIndex != null && forBinderValue != null && binders[0] === forKey) {
-            if (scope[forIndex]) {
-                currentScope = scope[forIndex];
-                fullBinder = forBinderValue + '.' + forIndex;
-                result.binder = forIndex.toString();
-            }
-        }
-        if (binders.length > 1) {
-            fullBinder = fullBinder || binders[0];
-            for (var i = 1; i < binders.length - 1; i++) {
-                if (currentScope[binders[i]] != null) {
-                    currentScope = currentScope[binders[i]];
-                    fullBinder += '.' + binders[i];
+function bindListeners(ele: Element, scope: object, binder: string) {
+    if (isInputType.input(ele.tagName)) {
+        var inputElement = (<HTMLInputElement>ele);
+        var type = inputElement.type;
+        if (isInputType.textbox(type)) {
+            inputElement.addEventListener('input', () => {
+                scope[binder] = type === inputTypes.number && inputElement.value !== '' ?
+                    parseFloat(inputElement.value) : inputElement.value;
+            });
+        } else if (isInputType.options(type)) {
+            inputElement.addEventListener('change', () => {
+                if (inputElement.checked === true) {
+                    scope[binder] = inputElement.value;
+                } else {
+                    scope[binder] = '';
                 }
-                else return null;
-            }
-            result.binder = binders[binders.length - 1];
-            result.scope = currentScope;
-            fullBinder += '.' + result.binder;
+            });
         }
-        result.firstBinder = binders[0];
-        result.fullBinder = fullBinder || result.fullBinder;
-        if (result.scope && result.scope[result.binder] === void 0) result.scope[result.binder] = { $$undefinedBinder: true };
-        return result;
     }
+}
+
+function parseBinder(scope: Object, binder: string, forKey?: string, forBinderValue?: string, forIndex?: number): IParsedBinder {
+    var result: IParsedBinder = {
+        scope: scope,
+        binder: binder,
+        firstBinder: binder,
+        fullBinder: binder
+    }
+    var binders = binder.split('.');
+    var currentScope = scope[binders[0]];
+    var fullBinder;
+    if (forKey != null && forIndex != null && forBinderValue != null && binders[0] === forKey) {
+        if (scope[forIndex]) {
+            currentScope = scope[forIndex];
+            fullBinder = forBinderValue + '.' + forIndex;
+            result.binder = forIndex.toString();
+        }
+    }
+    if (binders.length > 1) {
+        fullBinder = fullBinder || binders[0];
+        for (var i = 1; i < binders.length - 1; i++) {
+            if (currentScope[binders[i]] != null) {
+                currentScope = currentScope[binders[i]];
+                fullBinder += '.' + binders[i];
+            }
+            else return null;
+        }
+        result.binder = binders[binders.length - 1];
+        result.scope = currentScope;
+        fullBinder += '.' + result.binder;
+    }
+    result.firstBinder = binders[0];
+    result.fullBinder = fullBinder || result.fullBinder;
+    if (result.scope && result.scope[result.binder] === void 0) result.scope[result.binder] = { $$undefinedBinder: true };
+    return result;
 }
