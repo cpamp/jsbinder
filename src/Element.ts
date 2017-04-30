@@ -1,7 +1,7 @@
 import { ForBinder } from "./ForBinder";
 
 
-export namespace ElementBinding {
+export namespace Element {
     const inputTypes = {
         text: "text",
         checkbox: 'checkbox',
@@ -84,7 +84,7 @@ export namespace ElementBinding {
         }
     }
 
-    export function getAttributeSelector(attribute: string) {
+    export function getSelector(attribute: string) {
         return '[' + attribute + ']:not([' + attribute + '=""])';
     }
 

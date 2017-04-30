@@ -1,10 +1,10 @@
-import { ElementBinding } from "./ElementBinding";
+import { Element } from "./Element";
 import { ForBinder, IForBinder, IForElement } from "./ForBinder";
 
-export module ForBinding {
+export module For {
 
     export function bindForElements(scope: Object, binderAttribute: string, forAttribute: string, forBinders: ForBinder[], binders: Element[]) {
-        var forElements = document.querySelectorAll(ElementBinding.getAttributeSelector(forAttribute));
+        var forElements = document.querySelectorAll(Element.getSelector(forAttribute));
         for (var i = 0; i < forElements.length; i++) {
             bindForElement(forElements[i], scope, binderAttribute, forAttribute, forBinders, binders);
         }
@@ -17,7 +17,7 @@ export module ForBinding {
 
         var forKey = forAttirbuteValues[0];
         
-        var parsedForBinder = ElementBinding.parseBinder(scope, forAttirbuteValues[1]);
+        var parsedForBinder = Element.parseBinder(scope, forAttirbuteValues[1]);
         if (!parsedForBinder || !parsedForBinder.scope[parsedForBinder.binder] || parsedForBinder.scope[parsedForBinder.binder].length === 0) return;
         var forScope: any[] = parsedForBinder.scope[parsedForBinder.binder];
 
@@ -25,7 +25,7 @@ export module ForBinding {
 
         ((forBinder: ForBinder) => {
             var rebinder = rebindFor(element, scope, binderAttribute, forAttribute, forBinder, parsedForBinder, forBinders, binderEles);
-            ElementBinding.bindSetter(parsedForBinder, binderEles, rebinder);
+            Element.bindSetter(parsedForBinder, binderEles, rebinder);
             defineArrayMutators(parsedForBinder.scope[parsedForBinder.binder], rebinder);
         })(forBinder);
 
@@ -41,8 +41,8 @@ export module ForBinding {
                     element: forElement,
                     binders: []
                 }
-                var binders = forElement.querySelectorAll(ElementBinding.getAttributeSelector(binderAttribute));
-                ElementBinding.bindElements(binders, forScope, binderAttribute, binderEles, forBinders, forKey, parsedForBinder.fullBinder, j);
+                var binders = forElement.querySelectorAll(Element.getSelector(binderAttribute));
+                Element.bindElements(binders, forScope, binderAttribute, binderEles, forBinders, forKey, parsedForBinder.fullBinder, j);
                 for (var k = 0; k < binders.length; k++) {
                     forElementBinds.binders.push(binders[k]);
                 }
@@ -82,7 +82,7 @@ export module ForBinding {
         });
     }
 
-    function rebindFor(element: Element, scope: Object, binderAttribute: string, forAttribute: string, forBinder: ForBinder, parsedForBiner: ElementBinding.IParsedBinder, forBinders: ForBinder[], binders: Element[]): Function {
+    function rebindFor(element: Element, scope: Object, binderAttribute: string, forAttribute: string, forBinder: ForBinder, parsedForBiner: Element.IParsedBinder, forBinders: ForBinder[], binders: Element[]): Function {
         return () => {
             forBinder.elements.forEach((ele: IForElement) => {
                 if (!forBinder.isRoot(ele.element)) {
