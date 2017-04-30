@@ -1,0 +1,1 @@
+window.Binder = window.Binder || require('../bin/Binder.js').Binder;
