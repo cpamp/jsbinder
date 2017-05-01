@@ -33,9 +33,10 @@ export namespace Element {
     export function bindElements(elements: NodeListOf<Element>, rootScope: Object, binderAttribute: string, binders: Element[], forBinders: ForBinder[], forKey?: string, forBinderValue?: string, forIndex?: number) {
         for (var i = 0; i < elements.length; i++) {
             ((item) => {
+                var item = elements.item(i);
                 var isForBinder = false;
-                for (var i = 0; i < forBinders.length; i++) {
-                    if (forBinders[i].hasForBinder(item)) {
+                for (var j = 0; j < forBinders.length; j++) {
+                    if (forBinders[j].hasForBinder(item)) {
                         isForBinder = true;
                         break;
                     };
@@ -47,7 +48,10 @@ export namespace Element {
                     if (parsedBinder) {
                         var scope = parsedBinder.scope;
                         var binder = parsedBinder.binder;
-                        bindSetter(parsedBinder, binders);
+                        binders[parsedBinder.fullBinder] = binders[parsedBinder.fullBinder] || [];
+                            if (binders[parsedBinder.fullBinder].length === 0) defineSetter(parsedBinder, (value: any) => {
+                                propertySetter(binders, parsedBinder.fullBinder, value)
+                            });
                         assignDefault(item, scope[binder]);
                         bindListeners(item, scope, binder);
                         binders[parsedBinder.fullBinder].push(item);
@@ -57,31 +61,22 @@ export namespace Element {
         }
     }
 
-    export function bindSetter(parsedBinder: IParsedBinder, binders: Element[], customSetter: Function = null) {
-        var binder = parsedBinder.binder,
-            scope = parsedBinder.scope,
-            binderAttrValue = parsedBinder.fullBinder,
-            binderProperty = '_$$__' + binder + '__$$_';
-
-        binders[binderAttrValue] = binders[binderAttrValue] || [];
-
-        if (binders[binderAttrValue].length === 0) {
-            Object.defineProperty(scope, binderProperty, {
-                value: scope[binder],
-                enumerable: false,
-                writable: true
-            });
-            Object.defineProperty(scope, binder, {
-                get: function() {
-                    return this[binderProperty]
-                },
-                set: function(value) {
-                    this[binderProperty] = value;
-                    propertySetter(binders, binderAttrValue, value);
-                    if (typeof customSetter === 'function') customSetter();
-                }
-            });
-        }
+    export function defineSetter (parsedBinder: IParsedBinder, customSetter: (value: any) => void) {
+        var binderProperty = binderProperty = '_$$__' + parsedBinder.binder + '__$$_';
+        Object.defineProperty(parsedBinder.scope, binderProperty, {
+            value: parsedBinder.scope[parsedBinder.binder],
+            enumerable: false,
+            writable: true
+        });
+        Object.defineProperty(parsedBinder.scope, parsedBinder.binder, {
+            get: function() {
+                return this[binderProperty]
+            },
+            set: function(value) {
+                this[binderProperty] = value;
+                if (typeof customSetter === 'function') customSetter(value);
+            }
+        });
     }
 
     export function getSelector(attribute: string) {

@@ -25,7 +25,8 @@ export module For {
 
         ((forBinder: ForBinder) => {
             var rebinder = rebindFor(element, scope, binderAttribute, forAttribute, forBinder, parsedForBinder, forBinders, binderEles);
-            Element.bindSetter(parsedForBinder, binderEles, rebinder);
+            binderEles[parsedForBinder.fullBinder] = binderEles[parsedForBinder.fullBinder] || [];
+            if (binderEles[parsedForBinder.fullBinder].length === 0) Element.defineSetter(parsedForBinder, rebinder);
             defineArrayMutators(parsedForBinder.scope[parsedForBinder.binder], rebinder);
         })(forBinder);
 
@@ -82,8 +83,8 @@ export module For {
         });
     }
 
-    function rebindFor(element: Element, scope: Object, binderAttribute: string, forAttribute: string, forBinder: ForBinder, parsedForBiner: Element.IParsedBinder, forBinders: ForBinder[], binders: Element[]): Function {
-        return () => {
+    function rebindFor(element: Element, scope: Object, binderAttribute: string, forAttribute: string, forBinder: ForBinder, parsedForBiner: Element.IParsedBinder, forBinders: ForBinder[], binders: Element[]): (value) => void {
+        return (value) => {
             forBinder.elements.forEach((ele: IForElement) => {
                 if (!forBinder.isRoot(ele.element)) {
                     ele.binders.forEach((binderEle: Element) => {
