@@ -1,14 +1,11 @@
-export interface IForBinder {
-    root: Element;
-    elements: IForElement[];
-}
-
 export interface IForElement {
     element: Element;
     binders: Element[];
 }
 
-export class ForBinder implements IForBinder {
+export class ForBinder {
+    public rebinder: (value:string) => void;
+    public fullBinder: string;
     constructor(public root: Element, public elements: IForElement[] = []) {}
 
     isRoot(search: Element): boolean {

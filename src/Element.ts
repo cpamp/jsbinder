@@ -1,5 +1,6 @@
-import { ForBinder } from "./ForBinder";
-
+import { IBinders } from "./IBinders";
+import { Setter } from "./Setter";
+import { IAttributes } from "./IAttributes";
 
 export namespace Element {
     const inputTypes = {
@@ -11,7 +12,7 @@ export namespace Element {
         number: 'number'
     }
 
-    const isInputType = {
+    export const isInputType = {
         input: function(tagname: string): boolean {
             tagname = tagname.toLowerCase();
             return tagname === 'input';
@@ -30,77 +31,37 @@ export namespace Element {
         }
     }
 
-    export function bindElements(elements: NodeListOf<Element>, rootScope: Object, binderAttribute: string, binders: Element[], forBinders: ForBinder[], forKey?: string, forBinderValue?: string, forIndex?: number) {
+    export function bindElements(elements: NodeListOf<Element>, rootScope: Object, attributes: IAttributes, binders: IBinders, forKey?: string, forBinderValue?: string, forIndex?: number) {
         for (var i = 0; i < elements.length; i++) {
             ((item) => {
                 var item = elements.item(i);
                 var isForBinder = false;
-                for (var j = 0; j < forBinders.length; j++) {
-                    if (forBinders[j].hasForBinder(item)) {
+                for (var j = 0; j < binders.forBinders.length; j++) {
+                    if (binders.forBinders[j].hasForBinder(item)) {
                         isForBinder = true;
                         break;
                     };
                 }
                 if (!isForBinder) {
-                    var binderAttrValue = item.getAttribute(binderAttribute).trim();
+                    var binderAttrValue = item.getAttribute(attributes.bind).trim();
                     var parsedBinder: IParsedBinder = parseBinder(rootScope, binderAttrValue, forKey, forBinderValue, forIndex);
 
                     if (parsedBinder) {
                         var scope = parsedBinder.scope;
                         var binder = parsedBinder.binder;
-                        binders[parsedBinder.fullBinder] = binders[parsedBinder.fullBinder] || [];
-                            if (binders[parsedBinder.fullBinder].length === 0) defineSetter(parsedBinder, (value: any) => {
-                                propertySetter(binders, parsedBinder.fullBinder, value)
-                            });
+                        binders.binders[parsedBinder.fullBinder] = binders.binders[parsedBinder.fullBinder] || [];
+                        if (binders.binders[parsedBinder.fullBinder].length === 0) Setter.defineSetter(parsedBinder, binders);
                         assignDefault(item, scope[binder]);
                         bindListeners(item, scope, binder);
-                        binders[parsedBinder.fullBinder].push(item);
+                        binders.binders[parsedBinder.fullBinder].push(item);
                     }
                 }
             })(elements.item(i));
         }
     }
 
-    export function defineSetter (parsedBinder: IParsedBinder, customSetter: (value: any) => void) {
-        var binderProperty = binderProperty = '_$$__' + parsedBinder.binder + '__$$_';
-        Object.defineProperty(parsedBinder.scope, binderProperty, {
-            value: parsedBinder.scope[parsedBinder.binder],
-            enumerable: false,
-            writable: true
-        });
-        Object.defineProperty(parsedBinder.scope, parsedBinder.binder, {
-            get: function() {
-                return this[binderProperty]
-            },
-            set: function(value) {
-                this[binderProperty] = value;
-                if (typeof customSetter === 'function') customSetter(value);
-            }
-        });
-    }
-
     export function getSelector(attribute: string) {
         return '[' + attribute + ']:not([' + attribute + '=""])';
-    }
-
-    function propertySetter(binders: Element[], binder: string, value: any) {
-        binders[binder].forEach((ele: Element) => {
-            if (isInputType.input(ele.tagName)) {
-                var inputElement = (<HTMLInputElement>ele);
-                var type = inputElement.type;
-                if (isInputType.textbox(type)) {
-                    inputElement.value = value;
-                } else if (isInputType.options(type)) {
-                    if (inputElement.value === value) {
-                        inputElement.checked = true;
-                    } else {
-                        inputElement.checked = false;
-                    }
-                }
-            } else {
-                ele.innerHTML = value;
-            }
-        });
     }
 
     function assignDefault(element: Element, value: any) {
@@ -160,10 +121,15 @@ export namespace Element {
         var currentScope = scope[binders[0]];
         var fullBinder;
         if (forKey != null && forIndex != null && forBinderValue != null && binders[0] === forKey) {
-            if (scope[forIndex]) {
-                currentScope = scope[forIndex];
+            if (scope[forBinderValue]) {
+                currentScope = scope[forBinderValue];
                 fullBinder = forBinderValue + '.' + forIndex;
                 result.binder = forIndex.toString();
+                if (binders[1]) {
+                    currentScope = currentScope[forIndex];
+                    result.binder = binders[1];
+                }
+                result.scope = currentScope;
             }
         }
         if (binders.length > 1) {

@@ -3,9 +3,12 @@ import { IBinderOptions } from "./IBinderOptions";
 import { ForBinder, IForElement } from "./ForBinder";
 import { For } from "./For";
 import { Element } from "./Element";
+import { IAttributes } from "./IAttributes";
+import { IfBinder } from "./IfBinder";
 
 const binderSuffix: string = '-bind';
 const forSuffix: string = '-for';
+const ifSuffix: string = '-if';
 
 const defaultOptions: IBinderOptions = {
     scope: window,
@@ -21,8 +24,9 @@ function getOptions(options: IBinderOptions): IBinderOptions {
 }
 
 export class Binder {
-    private binders: Element[] = [];
-    private forBinders: ForBinder[] = [];
+    public binders: Element[] = [];
+    public forBinders: ForBinder[] = [];
+    public ifBinders: IfBinder[] = [];
 
     constructor(options?: IBinderOptions) {
         options = getOptions(options);
@@ -33,16 +37,17 @@ export class Binder {
 
     bind(options: IBinderOptions) {
         options = getOptions(options);
-        var binderAttribute = options.prefix + binderSuffix;
-        this.bindFor(options);
-        var elements = document.querySelectorAll(Element.getSelector(binderAttribute));
-        Element.bindElements(elements, options.scope, binderAttribute, this.binders, this.forBinders);
+        var attributes: IAttributes = {
+            if: options.prefix + ifSuffix,
+            for: options.prefix + forSuffix,
+            bind: options.prefix + binderSuffix
+        }
+        For.bindForElements(options.scope, attributes, this);
+        var elements = document.querySelectorAll(Element.getSelector(attributes.bind));
+        Element.bindElements(elements, options.scope, attributes, this);
     }
 
     bindFor(options: IBinderOptions) {
-        options = getOptions(options)
-        var binderAttribute = options.prefix + binderSuffix;
-        var forAttirbute = options.prefix + forSuffix;
-        For.bindForElements(options.scope, binderAttribute, forAttirbute, this.forBinders, this.binders);
+        
     }
 }

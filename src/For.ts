@@ -1,18 +1,21 @@
 import { Element } from "./Element";
-import { ForBinder, IForBinder, IForElement } from "./ForBinder";
+import { ForBinder, IForElement } from "./ForBinder";
+import { IAttributes } from "./IAttributes";
+import { IBinders } from "./IBinders";
+import { Setter } from "./Setter";
 
 export module For {
 
-    export function bindForElements(scope: Object, binderAttribute: string, forAttribute: string, forBinders: ForBinder[], binders: Element[]) {
-        var forElements = document.querySelectorAll(Element.getSelector(forAttribute));
+    export function bindForElements(scope: Object, attributes: IAttributes, binders: IBinders) {
+        var forElements = document.querySelectorAll(Element.getSelector(attributes.for));
         for (var i = 0; i < forElements.length; i++) {
-            bindForElement(forElements[i], scope, binderAttribute, forAttribute, forBinders, binders);
+            bindForElement(forElements[i], scope, attributes, binders);
         }
     }
 
-    function bindForElement(element: Element, scope: Object, binderAttribute: string, forAttribute: string, forBinders: ForBinder[], binderEles: Element[]) {
+    function bindForElement(element: Element, scope: Object, attributes: IAttributes, binders: IBinders) {
         (<HTMLElement>element).style.visibility = 'visible';
-        var forAttirbuteValues = element.getAttribute(forAttribute).trim().split(" of ");
+        var forAttirbuteValues = element.getAttribute(attributes.for).trim().split(" of ");
         if (forAttirbuteValues.length !== 2) return;
 
         var forKey = forAttirbuteValues[0];
@@ -23,12 +26,11 @@ export module For {
 
         var forBinder = new ForBinder(element);
 
-        ((forBinder: ForBinder) => {
-            var rebinder = rebindFor(element, scope, binderAttribute, forAttribute, forBinder, parsedForBinder, forBinders, binderEles);
-            binderEles[parsedForBinder.fullBinder] = binderEles[parsedForBinder.fullBinder] || [];
-            if (binderEles[parsedForBinder.fullBinder].length === 0) Element.defineSetter(parsedForBinder, rebinder);
-            defineArrayMutators(parsedForBinder.scope[parsedForBinder.binder], rebinder);
-        })(forBinder);
+        forBinder.rebinder = rebindFor(scope, attributes, forBinder, parsedForBinder, binders);
+        binders.binders[parsedForBinder.fullBinder] = binders.binders[parsedForBinder.fullBinder] || [];
+        if (binders.binders[parsedForBinder.fullBinder].length === 0) Setter.defineSetter(parsedForBinder, binders);
+        defineArrayMutators(parsedForBinder.scope[parsedForBinder.binder], forBinder.rebinder);
+        forBinder.fullBinder = parsedForBinder.fullBinder;
 
         if (parsedForBinder.scope[parsedForBinder.binder].$$undefinedBinder) {
             (<HTMLElement>element).style.visibility = 'hidden';
@@ -42,18 +44,18 @@ export module For {
                     element: forElement,
                     binders: []
                 }
-                var binders = forElement.querySelectorAll(Element.getSelector(binderAttribute));
-                Element.bindElements(binders, forScope, binderAttribute, binderEles, forBinders, forKey, parsedForBinder.fullBinder, j);
-                for (var k = 0; k < binders.length; k++) {
-                    forElementBinds.binders.push(binders[k]);
+                var forBinderElements = forElement.querySelectorAll(Element.getSelector(attributes.bind));
+                Element.bindElements(forBinderElements, scope, attributes, binders, forKey, parsedForBinder.fullBinder, j);
+                for (var k = 0; k < forBinderElements.length; k++) {
+                    forElementBinds.binders.push(forBinderElements.item(k));
                 }
                 forBinder.elements.push(forElementBinds);
             }
         }
-        forBinders.push(forBinder);
+        binders.forBinders.push(forBinder);
     }
 
-    function defineArrayMutators(arrayObject: any[], rebinder: Function) {
+    function defineArrayMutators(arrayObject: any[], rebinder: (value: any) => void) {
         const arrayMutators = [
             "copyWithin",
             "fill",
@@ -70,20 +72,20 @@ export module For {
         }
     }
 
-    function defineArrayMutator(arrayObject: any[], rebinder: Function, method: string) {
+    function defineArrayMutator(arrayObject: any[], rebinder: (value:any) => void, method: string) {
         Object.defineProperty(arrayObject, method, {
             configurable: true,
             enumerable: false,
             writable: false,
             value: function () {
                 var result = Array.prototype[method].apply(this, arguments);
-                rebinder();
+                rebinder(this);
                 return result;
             }
         });
     }
 
-    function rebindFor(element: Element, scope: Object, binderAttribute: string, forAttribute: string, forBinder: ForBinder, parsedForBiner: Element.IParsedBinder, forBinders: ForBinder[], binders: Element[]): (value) => void {
+    function rebindFor(scope: Object, attributes: IAttributes, forBinder: ForBinder, parsedForBiner: Element.IParsedBinder, binders: IBinders): (value) => void {
         return (value) => {
             forBinder.elements.forEach((ele: IForElement) => {
                 if (!forBinder.isRoot(ele.element)) {
@@ -93,12 +95,12 @@ export module For {
                     ele.element.remove();
                 }
             });
-            for (var i = 0; i < forBinders.length; i++) {
-                if (forBinder === forBinders[i]) {
-                    forBinders.splice(i, 1);
+            for (var i = 0; i < binders.forBinders.length; i++) {
+                if (forBinder === binders.forBinders[i]) {
+                    binders.forBinders.splice(i, 1);
                 }
             }
-            bindForElement(<Element>forBinder.root, scope, binderAttribute, forAttribute, forBinders, binders);
+            bindForElement(<Element>forBinder.root, scope, attributes, binders);
         };
     }
 }
